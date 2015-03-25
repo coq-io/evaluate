@@ -1,0 +1,9 @@
+opam*
+Makefile
+Makefile.bak
+*.vo
+*.glob
+*.v.d
+*.aux
+.coq-native/
+html/
