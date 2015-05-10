@@ -1,2 +1,2 @@
-# io-run
-Generic functions to run effects.
+# IO Eval
+Generic functions to evaluate effects.
