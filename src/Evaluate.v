@@ -4,15 +4,15 @@ Require Import Io.All.
 Import C.Notations.
 
 (** Evaluate the commands of a computation. *)
-Fixpoint eval {E1 E2 : Effect.t} {A : Type}
+Fixpoint command {E1 E2 : Effect.t} {A : Type}
   (run : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c))
   (x : C.t E1 A) : C.t E2 A :=
   match x with
   | C.Ret _ x => C.Ret _ x
   | C.Call c => run c
-  | C.Let _ _ x f => C.Let _ _ (eval run x) (fun x => eval run (f x))
-  | C.Join _ _ x y => C.Join _ _ (eval run x) (eval run y)
-  | C.Choose _ x y => C.Choose _ (eval run x) (eval run y)
+  | C.Let _ _ x f => C.Let _ _ (command run x) (fun x => command run (f x))
+  | C.Join _ _ x y => C.Join _ _ (command run x) (command run y)
+  | C.Choose _ x y => C.Choose _ (command run x) (command run y)
   end.
 
 Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
