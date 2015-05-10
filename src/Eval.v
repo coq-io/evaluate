@@ -12,7 +12,7 @@ Fixpoint lift {E1 E2 : Effect.t} {A : Type}
   | C.Call c => run c
   | C.Let _ _ x f => C.Let _ _ (lift run x) (fun x => lift run (f x))
   | C.Join _ _ x y => C.Join _ _ (lift run x) (lift run y)
-  | C.First _ _ x y => C.First _ _ (lift run x) (lift run y)
+  | C.Choose _ x y => C.Choose _ (lift run x) (lift run y)
   end.
 
 Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
@@ -34,11 +34,6 @@ Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
     | (inr exc, inl _) | (inl _, inr exc) => ret @@ inr exc
     | (inr exc_x, inr exc_y) => ret @@ inr (run_join exc_x exc_y)
     end
-  | C.First _ _ x y =>
-    let! xy := first (exception run run_join x) (exception run run_join y) in
-    match xy with
-    | inl (inl x) => ret @@ inl @@ inl x
-    | inr (inl y) => ret @@ inl @@ inr y
-    | inl (inr exc) | inr (inr exc) => ret @@ inr exc
-    end
+  | C.Choose _ x y =>
+    choose (exception run run_join x) (exception run run_join y)
   end.
