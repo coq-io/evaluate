@@ -1,7 +1,9 @@
 Require Import FunctionNinjas.All.
 Require Import Io.All.
+Require Import Monad.All.
 
 Import C.Notations.
+Local Open Scope type.
 
 (** Evaluate the commands of a computation. *)
 Fixpoint command {E1 E2 : Effect.t} {A : Type}
@@ -36,6 +38,28 @@ Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
     end
   | C.Choose _ x y =>
     choose (exception eval eval_join x) (exception eval eval_join y)
+  end.
+
+Module EvalMonad.
+  Record t (E : Effect.t) (M : Type -> Type) := New {
+    command : forall (c : Effect.command E), M (Effect.answer E c);
+    join : forall A B, M A -> M B -> M (A * B);
+    choose : forall A, M A -> M A -> M A }.
+  Arguments command {E M} _ _.
+  Arguments join {E M} _ {A B} _ _.
+  Arguments choose {E M} _ {A} _ _.
+End EvalMonad.
+
+Fixpoint monad {E : Effect.t} {A : Type} {M : Type -> Type} (m : Monad.t M)
+  (eval : EvalMonad.t E M) (x : C.t E A) : M A :=
+  match x with
+  | C.Ret _ x => Monad.ret m x
+  | C.Call c => EvalMonad.command eval c
+  | C.Let _ _ x f =>
+    Monad.bind m (monad m eval x) (fun x =>
+    monad m eval (f x))
+  | C.Join _ _ x y => EvalMonad.join eval (monad m eval x) (monad m eval y)
+  | C.Choose _ x y => EvalMonad.choose eval (monad m eval x) (monad m eval y)
   end.
 
 Module Run.
