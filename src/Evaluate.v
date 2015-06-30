@@ -5,7 +5,21 @@ Require Import Monad.All.
 Import C.Notations.
 Local Open Scope type.
 
-(** Evaluate the commands of a computation. *)
+Fixpoint pure {E : Effect.t} {A : Type}
+  (eval : forall (c : Effect.command E), Effect.answer E c)
+  (eval_choose : forall A, A -> A -> A) (x : C.t E A) : A :=
+  match x with
+  | C.Ret _ x => x
+  | C.Call c => eval c
+  | C.Let _ _ x f =>
+    let x := pure eval eval_choose x in
+    pure eval eval_choose (f x)
+  | C.Join _ _ x y => (pure eval eval_choose x, pure eval eval_choose y)
+  | C.Choose _ x y =>
+    eval_choose _ (pure eval eval_choose x) (pure eval eval_choose y)
+  end.
+
+(** Evaluate the commands of a computation using other commands. *)
 Fixpoint command {E1 E2 : Effect.t} {A : Type}
   (eval : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c))
   (x : C.t E1 A) : C.t E2 A :=
