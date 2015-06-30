@@ -39,14 +39,14 @@ Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
   end.
 
 Module Run.
-  Fixpoint command {E1 E2} {A}
+  Fixpoint command {E1 E2 : Effect.t} {A : Type}
     {eval : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c)}
     (run : forall c (a : Effect.answer E1 c), Run.t (eval c) a)
     {x : C.t E1 A} {v : A} (r : Run.t x v) : Run.t (command eval x) v.
     destruct r; simpl.
     - apply Run.Ret.
     - apply run.
-    - apply (Run.Let (command _ _ _ _ run _ _ r1)).
+    - eapply Run.Let. apply (command _ _ _ _ run _ _ r1).
       apply (command _ _ _ _ run _ _ r2).
     - apply ChooseLeft.
       apply (command _ _ _ _ run _ _ r).
@@ -55,5 +55,27 @@ Module Run.
     - apply Run.Join.
       + apply (command _ _ _ _ run _ _ r1).
       + apply (command _ _ _ _ run _ _ r2).
+  Defined.
+
+  Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
+    {eval : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c + Exc)}
+    {eval_join : Exc -> Exc -> Exc}
+    (run : forall c (a : Effect.answer E1 c), Run.t (eval c) (inl a))
+    {x : C.t E1 A} {v : A} (r : Run.t x v)
+    : Run.t (exception eval eval_join x) (inl v).
+    destruct r; simpl.
+    - apply Run.Ret.
+    - apply run.
+    - eapply Run.Let. apply (exception _ _ _ _ _ _ run _ _ r1).
+      apply (exception _ _ _ _ _ _ run _ _ r2).
+    - apply Run.ChooseLeft.
+      apply (exception _ _ _ _ _ _ run _ _ r).
+    - apply Run.ChooseRight.
+      apply (exception _ _ _ _ _ _ run _ _ r).
+    - eapply Run.Let.
+      + eapply Run.Join.
+        * apply (exception _ _ _ _ _ _ run _ _ r1).
+        * apply (exception _ _ _ _ _ _ run _ _ r2).
+      + apply Run.Ret.
   Defined.
 End Run.
