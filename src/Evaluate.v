@@ -85,9 +85,9 @@ Module Run.
     - apply run.
     - eapply Run.Let. apply (command _ _ _ _ run _ _ r1).
       apply (command _ _ _ _ run _ _ r2).
-    - apply ChooseLeft.
+    - apply Run.ChooseLeft.
       apply (command _ _ _ _ run _ _ r).
-    - apply ChooseRight.
+    - apply Run.ChooseRight.
       apply (command _ _ _ _ run _ _ r).
     - apply Run.Join.
       + apply (command _ _ _ _ run _ _ r1).
