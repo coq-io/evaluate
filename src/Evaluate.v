@@ -8,7 +8,7 @@ Fixpoint pure {E : Effect.t} {A : Type}
   (eval : forall (c : Effect.command E), Effect.answer E c)
   (eval_choose : forall A, A -> A -> A) (x : C.t E A) : A :=
   match x with
-  | C.Ret _ x => x
+  | C.Ret _ v => v
   | C.Call c => eval c
   | C.Let _ _ x f =>
     let x := pure eval eval_choose x in
@@ -23,7 +23,7 @@ Fixpoint command {E1 E2 : Effect.t} {A : Type}
   (eval : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c))
   (x : C.t E1 A) : C.t E2 A :=
   match x with
-  | C.Ret _ x => C.Ret _ x
+  | C.Ret _ v => C.Ret _ v
   | C.Call c => eval c
   | C.Let _ _ x f => C.Let _ _ (command eval x) (fun x => command eval (f x))
   | C.Join _ _ x y => C.Join _ _ (command eval x) (command eval y)
@@ -34,7 +34,7 @@ Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
   (eval : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c + Exc))
   (eval_join : Exc -> Exc -> Exc) (x : C.t E1 A) : C.t E2 (A + Exc) :=
   match x with
-  | C.Ret _ x => ret (inl x)
+  | C.Ret _ v => ret (inl v)
   | C.Call c => eval c
   | C.Let _ _ x f =>
     let! x := exception eval eval_join x in
@@ -66,13 +66,35 @@ End EvalMonad.
 Fixpoint monad {E : Effect.t} {A : Type} {M : Type -> Type} (m : Monad.t M)
   (eval : EvalMonad.t E M) (x : C.t E A) : M A :=
   match x with
-  | C.Ret _ x => Monad.ret m x
+  | C.Ret _ v => Monad.ret m v
   | C.Call c => EvalMonad.command eval c
   | C.Let _ _ x f =>
     Monad.bind m (monad m eval x) (fun x =>
     monad m eval (f x))
   | C.Join _ _ x y => EvalMonad.join eval (monad m eval x) (monad m eval y)
   | C.Choose _ x y => EvalMonad.choose eval (monad m eval x) (monad m eval y)
+  end.
+
+Module Handler.
+  Record t (E : Effect.t) (S : Type) (M : Type -> Type) : Type := New {
+    command : forall A (c : Effect.command E),
+      S -> (Effect.answer E c -> S -> M A) -> M A }.
+  Arguments command {E S M} _ {A} _ _ _.
+End Handler.
+
+Fixpoint algebraic {E S M A B} (h : Handler.t E S M) (x : C.t E A) (s : S)
+  : (A -> S -> M B) -> M B :=
+  match x with
+  | C.Ret _ v => fun k => k v s
+  | C.Call c => fun k => Handler.command h c s k
+  | C.Let _ _ x f => fun k =>
+    (algebraic h x s) (fun v_x s =>
+    algebraic h (f v_x) s k)
+  | C.Join _ _ x y => fun k =>
+    (algebraic h x s) (fun v_x s =>
+    (algebraic h y s) (fun v_y s =>
+    k (v_x, v_y) s))
+  | C.Choose _ x _ => fun k => algebraic h x s k
   end.
 
 Module Run.
@@ -124,7 +146,7 @@ Module I.
     (eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c))
     (x : C.I.t E1 A) : C.I.t E2 A :=
     match x with
-    | C.I.Ret _ x => C.I.Ret _ x
+    | C.I.Ret _ v => C.I.Ret _ v
     | C.I.Call c => eval c
     | C.I.Let _ _ x f =>
       C.I.Let _ _ (command eval x) (fun x => command eval (f x))
@@ -136,7 +158,7 @@ Module I.
     (eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c + Exc))
     (eval_join : Exc -> Exc -> Exc) (x : C.I.t E1 A) : C.I.t E2 (A + Exc) :=
     match x with
-    | C.I.Ret _ x => I.ret (inl x)
+    | C.I.Ret _ v => I.ret (inl v)
     | C.I.Call c => eval c
     | C.I.Let _ _ x f =>
       ilet! x := exception eval eval_join x in
