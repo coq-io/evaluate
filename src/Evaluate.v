@@ -97,6 +97,46 @@ Fixpoint algebraic {E S M A B} (h : Handler.t E S M) (x : C.t E A) (s : S)
   | C.Choose _ x _ => fun k => algebraic h x s k
   end.
 
+Module I.
+  Import C.I.Notations.
+
+  CoFixpoint command {E1 E2 : Effect.t} {A : Type}
+    (eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c))
+    (x : C.I.t E1 A) : C.I.t E2 A :=
+    match x with
+    | C.I.Ret _ v => C.I.Ret _ v
+    | C.I.Call c => eval c
+    | C.I.Let _ _ x f =>
+      C.I.Let _ _ (command eval x) (fun x => command eval (f x))
+    | C.I.Join _ _ x y => C.I.Join _ _ (command eval x) (command eval y)
+    | C.I.Choose _ x y => C.I.Choose _ (command eval x) (command eval y)
+    end.
+
+  CoFixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
+    (eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c + Exc))
+    (eval_join : Exc -> Exc -> Exc) (x : C.I.t E1 A) : C.I.t E2 (A + Exc) :=
+    match x with
+    | C.I.Ret _ v => I.ret (inl v)
+    | C.I.Call c => eval c
+    | C.I.Let _ _ x f =>
+      ilet! x := exception eval eval_join x in
+      match x with
+      | inl x => exception eval eval_join (f x)
+      | inr exc => I.ret (inr exc)
+      end
+    | C.I.Join _ _ x y =>
+      ilet! xy :=
+        I.join (exception eval eval_join x) (exception eval eval_join y) in
+      match xy with
+      | (inl x, inl y) => I.ret (inl (x, y))
+      | (inr exc, inl _) | (inl _, inr exc) => I.ret (inr exc)
+      | (inr exc_x, inr exc_y) => I.ret (inr (eval_join exc_x exc_y))
+      end
+    | C.I.Choose _ x y =>
+      I.choose (exception eval eval_join x) (exception eval eval_join y)
+    end.
+End I.
+
 Module Run.
   Fixpoint command {E1 E2 : Effect.t} {A : Type}
     {eval : forall (c : Effect.command E1), C.t E2 (Effect.answer E1 c)}
@@ -137,44 +177,27 @@ Module Run.
         * apply (exception _ _ _ _ _ _ run _ _ r2).
       + apply Run.Ret.
   Defined.
+
+  Module I.
+    CoFixpoint command {E1 E2 : Effect.t} {A : Type}
+      {eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c)}
+      (run : forall c (a : Effect.answer E1 c), Run.I.t (eval c) a)
+      {x : C.I.t E1 A} {v : A} (r : Run.I.t x v) : Run.I.t (I.command eval x) v.
+      rewrite (C.I.unfold_eq (I.command _ _)).
+      destruct r; simpl.
+      - apply Run.I.Ret.
+      - assert (r := run c answer).
+        rewrite (C.I.unfold_eq (eval _)) in r.
+        exact r.
+      - eapply Run.I.Let. apply (command _ _ _ _ run _ _ r1).
+        apply (command _ _ _ _ run _ _ r2).
+      - apply Run.I.ChooseLeft.
+        apply (command _ _ _ _ run _ _ r).
+      - apply Run.I.ChooseRight.
+        apply (command _ _ _ _ run _ _ r).
+      - apply Run.I.Join.
+        + apply (command _ _ _ _ run _ _ r1).
+        + apply (command _ _ _ _ run _ _ r2).
+    Defined.
+  End I.
 End Run.
-
-Module I.
-  Import C.I.Notations.
-
-  CoFixpoint command {E1 E2 : Effect.t} {A : Type}
-    (eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c))
-    (x : C.I.t E1 A) : C.I.t E2 A :=
-    match x with
-    | C.I.Ret _ v => C.I.Ret _ v
-    | C.I.Call c => eval c
-    | C.I.Let _ _ x f =>
-      C.I.Let _ _ (command eval x) (fun x => command eval (f x))
-    | C.I.Join _ _ x y => C.I.Join _ _ (command eval x) (command eval y)
-    | C.I.Choose _ x y => C.I.Choose _ (command eval x) (command eval y)
-    end.
-
-  CoFixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
-    (eval : forall (c : Effect.command E1), C.I.t E2 (Effect.answer E1 c + Exc))
-    (eval_join : Exc -> Exc -> Exc) (x : C.I.t E1 A) : C.I.t E2 (A + Exc) :=
-    match x with
-    | C.I.Ret _ v => I.ret (inl v)
-    | C.I.Call c => eval c
-    | C.I.Let _ _ x f =>
-      ilet! x := exception eval eval_join x in
-      match x with
-      | inl x => exception eval eval_join (f x)
-      | inr exc => I.ret (inr exc)
-      end
-    | C.I.Join _ _ x y =>
-      ilet! xy :=
-        I.join (exception eval eval_join x) (exception eval eval_join y) in
-      match xy with
-      | (inl x, inl y) => I.ret (inl (x, y))
-      | (inr exc, inl _) | (inl _, inr exc) => I.ret (inr exc)
-      | (inr exc_x, inr exc_y) => I.ret (inr (eval_join exc_x exc_y))
-      end
-    | C.I.Choose _ x y =>
-      I.choose (exception eval eval_join x) (exception eval eval_join y)
-    end.
-End I.
