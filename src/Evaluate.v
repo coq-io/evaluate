@@ -95,17 +95,16 @@ Fixpoint monad {E : Effect.t} {A : Type} {M : Type -> Type} (m : Monad.t M)
   end.
 
 Module Handler.
-  Record t (E : Effect.t) (S : Type) (M : Type -> Type) : Type := New {
-    command : forall A (c : Effect.command E),
-      S -> (Effect.answer E c -> S -> M A) -> M A }.
-  Arguments command {E S M} _ {A} _ _ _.
+  Definition t (E : Effect.t) (S : Type) (M : Type -> Type) : Type :=
+    forall A (c : Effect.command E),
+      S -> (Effect.answer E c -> S -> M A) -> M A.
 End Handler.
 
 Fixpoint algebraic {E S M A B} (h : Handler.t E S M) (x : C.t E A) (s : S)
   : (A -> S -> M B) -> M B :=
   match x with
   | C.Ret _ v => fun k => k v s
-  | C.Call c => fun k => Handler.command h c s k
+  | C.Call c => fun k => h _ c s k
   | C.Let _ _ x f => fun k =>
     (algebraic h x s) (fun v_x s =>
     algebraic h (f v_x) s k)
