@@ -53,6 +53,25 @@ Fixpoint exception {E1 E2 : Effect.t} {Exc A : Type}
     choose (exception eval eval_join x) (exception eval eval_join y)
   end.
 
+Fixpoint state {E1 E2 : Effect.t} {S A : Type}
+  (eval : forall (c : Effect.command E1), S -> C.t E2 (Effect.answer E1 c * S))
+  (eval_join : S -> S -> S) (x : C.t E1 A) (s : S) : C.t E2 (A * S) :=
+  match x with
+  | C.Ret _ v => ret (v, s)
+  | C.Call c => eval c s
+  | C.Let _ _ x f =>
+    let! x := state eval eval_join x s in
+    let (v_x, s) := x in
+    state eval eval_join (f v_x) s
+  | C.Join _ _ x y =>
+    let! xy := join (state eval eval_join x s) (state eval eval_join y s) in
+    match xy with
+    | ((v_x, s_x), (v_y, s_y)) => ret ((v_x, v_y), eval_join s_x s_y)
+    end
+  | C.Choose _ x y =>
+    choose (state eval eval_join x s) (state eval eval_join y s)
+  end.
+
 Module EvalMonad.
   Record t (E : Effect.t) (M : Type -> Type) := New {
     command : forall (c : Effect.command E), M (Effect.answer E c);
@@ -134,6 +153,26 @@ Module I.
       end
     | C.I.Choose _ x y =>
       I.choose (exception eval eval_join x) (exception eval eval_join y)
+    end.
+
+  CoFixpoint state {E1 E2 : Effect.t} {S A : Type}
+    (eval : forall c, S -> C.I.t E2 (Effect.answer E1 c * S))
+    (eval_join : S -> S -> S) (x : C.I.t E1 A) (s : S) : C.I.t E2 (A * S) :=
+    match x with
+    | C.I.Ret _ v => I.ret (v, s)
+    | C.I.Call c => eval c s
+    | C.I.Let _ _ x f =>
+      ilet! x := state eval eval_join x s in
+      let (v_x, s) := x in
+      state eval eval_join (f v_x) s
+    | C.I.Join _ _ x y =>
+      ilet! xy :=
+        I.join (state eval eval_join x s) (state eval eval_join y s) in
+      match xy with
+      | ((v_x, s_x), (v_y, s_y)) => I.ret ((v_x, v_y), eval_join s_x s_y)
+      end
+    | C.I.Choose _ x y =>
+      I.choose (state eval eval_join x s) (state eval eval_join y s)
     end.
 End I.
 
