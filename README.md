@@ -1,2 +1,4 @@
 # IO Eval
-Generic functions to evaluate effects.
+> Generic functions to evaluate effects.
+
+    opam install coq-io-evaluate
