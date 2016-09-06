@@ -1,5 +1,4 @@
 Require Import Io.All.
-Require Import Monad.All.
 
 Import C.Notations.
 Local Open Scope type.
@@ -71,6 +70,14 @@ Fixpoint state {E1 E2 : Effect.t} {S A : Type}
   | C.Choose _ x y =>
     choose (state eval eval_join x s) (state eval eval_join y s)
   end.
+
+Module Monad.
+  Record t (M : Type -> Type) : Type := New {
+    ret : forall {A : Type}, A -> M A;
+    bind : forall {A B : Type}, M A -> (A -> M B) -> M B }.
+  Arguments ret {M} _ {A} _.
+  Arguments bind {M} _ {A B} _ _.
+End Monad.
 
 Module EvalMonad.
   Record t (E : Effect.t) (M : Type -> Type) := New {
